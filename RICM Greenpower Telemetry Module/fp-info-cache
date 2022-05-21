@@ -1,4 +1,4 @@
-20239479238759336
+20242785451891209
 Audio_Module
 Reverb_BTDR-1H
 Digital Reverberation Unit, http://www.belton.co.kr/inc/downfile.php?seq=17&file=pdf (footprint from http://www.uk-electronic.de/PDF/BTDR-1.pdf)
@@ -57729,6 +57729,13 @@ ESP8266 WiFi microcontroller
 20
 20
 Module
+Adafruit_MicroSD_breakout
+
+
+0
+11
+9
+Module
 Arduino_Nano
 Arduino Nano, http://www.mouser.com/pdfdocs/Gravitech_Arduino_Nano3_0.pdf
 Arduino Nano
@@ -57784,6 +57791,13 @@ carambola2 8devices
 0
 104
 52
+Module
+MPU_6050_module
+
+
+0
+10
+8
 Module
 Maple_Mini
 Maple Mini, http://docs.leaflabs.com/static.leaflabs.com/pub/leaflabs/maple-docs/0.0.12/hardware/maple-mini.html
