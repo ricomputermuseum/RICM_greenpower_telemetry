@@ -18,4 +18,11 @@ class hall():
         self.ticks = t()
         
     def get_rpm(self):
+        return(1000000/self.period_us);
+    
+    def get_speed(self):
+        return(self.get_rpm()*scale)
+    
+    def get_speed_kph(self):
+        return(self.get_speed()*1.6)
         
