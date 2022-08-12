@@ -1,0 +1,16 @@
+added pullups on i2c
+
+added 3v3 regulator
+
+switched i2c parts to 3v3 power
+
+fixed connector pinout for current sensor
+
+removed capacitors and added pulldown for current sensor
+
+disconnected pi from 3v3 line
+
+added schottky diode for 5v regulator
+
+
+
