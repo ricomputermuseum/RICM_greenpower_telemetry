@@ -11,20 +11,20 @@ class thermistor():
         scl0=machine.Pin(17)
         i2c0=machine.I2C(bus, sda=sda0, scl=scl0, freq=400000)
         self.adc = ADC.ADS7830(i2c0)
-        self.number = number+4 #which thermistor is this? (0-3)
+        self.number = number+4 #which thermistor is this? (0-3), offset is because of the way the pins are setup on our board
         self.f = f
         self.t_celsius = 0
         self.t_farenheit = 0
     
     #equation that takes the raw voltage level from the thermistor and converts it to a celsius temperature
     def equation(self, raw):
-        num = raw #insert equation once derived
-        return(num)
+        temp = -54.9 + (1.52*raw) + (-0.011*pow(raw,2)) + (0.0000312*pow(raw,3)) #cubic polynomial is not ideal but we only sample at a low rate so it should be ok
+        return(temp) #using this equation, the absolute deviation should not exceed 8 degrees, consider rounding to 5 degrees
     
     def read(self):
         raw = self.adc.read_channel_se(self.number)
-        self.t_celsius = self.equation(raw)
-        self.t_farenheit = (self.t_celsius*5/9)+32
+        self.t_celsius = int(self.equation(raw))
+        self.t_farenheit = int((self.t_celsius*5/9)+32)
     
     def __str__(self):
         self.read()
