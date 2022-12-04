@@ -58,6 +58,18 @@ class PCA9555():
         self.reg_write(CFG0, CFG_OUTPUT)
         self.reg_write(CFG1, CFG_OUTPUT)
         
+    def display_setup(self): #setup I/O configuration as used on the RICM greenpower display module
+        self.reg_write(CFG0, CFG_OUTPUT)
+        self.reg_write(CFG1, CFG_INPUT)
+        
+    def display_read(self): #read display buttons
+        buttons = [False, False]
+        state = self.reg_read(INPUT1)
+        state = str(state)
+        buttons[0] = state[9] == '0'
+        buttons[1] = state[8] == '0'
+        return buttons;
+            
     def all_high(self):
         self.write_outputs([OUTPUT_HIGH, OUTPUT_HIGH])
         
