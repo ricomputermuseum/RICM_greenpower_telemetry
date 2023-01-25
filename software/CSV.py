@@ -19,12 +19,13 @@ class CSV():
         self.directory = directory
         #self.sd = SD.card(self.fname, self.directory)
         
-    def 
         
     def comp(self):
+        return(0)
         #return a CSV-formatted string for writing to the card
         
-    def write(self, fname = self.fname):
+    def write(self, fname = ''):
+        return(0)
         #compile then write to SD card
         
     def __str__(self):
