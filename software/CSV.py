@@ -17,7 +17,7 @@ class CSV():
         self.array = array
         self.fname = fname
         self.directory = directory
-        #self.sd = SD.card(self.fname, self.directory)
+        self.sd = SD.card(self.fname, self.directory)
         
         
     def comp(self):
