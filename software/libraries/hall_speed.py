@@ -25,4 +25,9 @@ class hall():
     
     def get_speed_kph(self):
         return(self.get_speed()*1.6)
-        
+    
+def hall_1_debug():
+    hall1 = machine.Pin(19, machine.Pin.IN)
+    for i in range(1000):
+        print(hall1.value())
+        time.sleep_ms(100)    

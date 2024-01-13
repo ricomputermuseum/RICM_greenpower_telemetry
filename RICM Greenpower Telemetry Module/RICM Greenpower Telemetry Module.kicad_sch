@@ -2404,7 +2404,7 @@
     (property "Value" "47uf" (id 1) (at 35.56 146.0499 0)
       (effects (font (size 1.27 1.27)) (justify left))
     )
-    (property "Footprint" "Capacitor_THT:CP_Radial_D8.0mm_P3.50mm" (id 2) (at 32.7152 148.59 0)
+    (property "Footprint" "Capacitor_THT:CP_Radial_D5.0mm_P2.00mm" (id 2) (at 32.7152 148.59 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (id 3) (at 31.75 144.78 0)
@@ -4106,7 +4106,7 @@
       (reference "C1") (unit 1) (value "10uf") (footprint "Capacitor_SMD:C_0805_2012Metric")
     )
     (path "/0d18f623-67ed-4824-a618-f2eb436b25c6"
-      (reference "C2") (unit 1) (value "47uf") (footprint "Capacitor_THT:CP_Radial_D8.0mm_P3.50mm")
+      (reference "C2") (unit 1) (value "47uf") (footprint "Capacitor_THT:CP_Radial_D5.0mm_P2.00mm")
     )
     (path "/71b5cd3e-ae0b-4068-9f4c-5ceaa9425277"
       (reference "C3") (unit 1) (value "10uf") (footprint "Capacitor_SMD:C_0805_2012Metric")
