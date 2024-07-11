@@ -26,27 +26,15 @@ bool timerHandler(struct repeating_timer *t){ //handler for the hardware timer
   return true;
 }
 void isrHandler10m(){ //handler for the 10ms isr
-  if(GLOBAL_DEBUG){
-    Serial.println(F("10ms Tasks Running"));
-  }
   isr10mFlag = 1;
 }
 void isrHandler100m(){ //handler for the 100ms isr
-  if(GLOBAL_DEBUG){
-    Serial.println(F("100ms Tasks Running"));
-  }
   isr100mFlag = 1;
 }
 void isrHandler1s(){ //handler for the 1s isr
-  if(GLOBAL_DEBUG){
-    Serial.println(F("1s Tasks Running"));
-  }
   isr1sFlag = 1;
 }
 void isrHandler10s(){ //handler for the 10s isr
-  if(GLOBAL_DEBUG){
-    Serial.println(F("10s Tasks Running"));
-  }
   isr10sFlag = 1;
 }
 
@@ -71,15 +59,27 @@ void loop() {
     timer1mFlag = 0;
   }
   if(isr10mFlag){
+    if(GLOBAL_DEBUG){
+      Serial.println(F("10ms Tasks Running"));
+    }
     isr10mFlag = 0;
   }
   if(isr100mFlag){
+    if(GLOBAL_DEBUG){
+      Serial.println(F("100ms Tasks Running"));
+    }
     isr100mFlag = 0;
   }
   if(isr1sFlag){
+    if(GLOBAL_DEBUG){
+      Serial.println(F("1s Tasks Running"));
+    }
     isr1sFlag = 0;
   }
   if(isr10sFlag){
+    if(GLOBAL_DEBUG){
+      Serial.println(F("10s Tasks Running"));
+    }
     isr10sFlag = 0;
   }
 }
