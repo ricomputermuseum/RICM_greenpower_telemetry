@@ -84,6 +84,10 @@ void logToSD(){ //log the raw data in the buffer as formatted CSV data
     Serial.println(F("No SD card inserted, cannot log data"));
   }
 }
+
+//---thermistors---
+#include "thermistor.h" //the acd-temperature conversion table. As the thermistor resistance equation is roughly quartic and the adc is only 8bits, it is simpler to store the values than calculate them.
+
 void setup() {
   //---serial---
   Serial.begin(); //begin debug serial
