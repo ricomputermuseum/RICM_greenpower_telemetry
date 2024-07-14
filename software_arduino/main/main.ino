@@ -2,8 +2,8 @@
 //c. 2024 Rhode Island Computer Museum and Emilio Latorre
 
 //---debug---
-#define GLOBAL_DEBUG_FAST 0 //if set triggers debug messages for the sub-1s timers on the serial port. generally want to avoid
-#define GLOBAL_DEBUG_SLOW 1 //if set triggers general debug messages for the over-1s timers
+#define GLOBAL_DEBUG 1 //if set triggers debug messages on serial from all functions
+char print_buf[64] = "hello world!"; //buffer for formatted printing using sprintf
 
 //---timers---
 #define TIMER_INTERRUPT_DEBUG       0
@@ -41,6 +41,9 @@ void isrHandler10s(){ //handler for the 10s isr
 
 //---timestamp---
 #include <TimeLib.h>
+void resetTime(){
+  setTime(0,0,0,1,1,2000); //set time to 0, day/month/year are irrelevant as we are only using to track elapsed time
+}
 
 //---sd card---
 #include <SPI.h>
@@ -51,7 +54,7 @@ void isrHandler10s(){ //handler for the 10s isr
 File logfile; //the file stream object for writing to the SD card
 float data_to_log[16]; //the values of data to be formatted
 char log_print_buf[16] = "              "; //buffer for formatted printing to the log file
-void sdSetup(){ //setup the SPI as connected to the SD card
+void setupSD(){ //setup the SPI as connected to the SD card
   pinMode(SD_DET_PIN, INPUT);
   if(digitalRead(SD_DET_PIN)){ //only write if the SD card is inserted
     SPI1.setSCK(10); //using SPI1 on these pins
@@ -85,8 +88,39 @@ void logToSD(){ //log the raw data in the buffer as formatted CSV data
   }
 }
 
+//---i2c---
+#include <Wire.h>
+void setupI2C(){ //setup the I2C buses
+  Wire.setSDA(16); //I2C0 goes to the ADC and gyro chips on-board
+  Wire.setSCL(17);
+  Wire.begin();
+  Wire1.setSDA(14); //I2C1 goes to the off-board display header
+  Wire1.setSCL(15);
+  //Wire1.begin();
+}
+
+//---adc---
+#include <Adafruit_ADS7830.h>
+Adafruit_ADS7830 adc0;
+void setupAdc(){ //start the adc with default address on i2c0
+  adc0.begin();
+}
+
 //---thermistors---
 #include "thermistor.h" //the acd-temperature conversion table. As the thermistor resistance equation is roughly quartic and the adc is only 8bits, it is simpler to store the values than calculate them.
+void readTemperature(uint8_t channel){ //read the selected channel and store it to the data log buffer
+  if(channel > 3){
+    Serial.println(F("Invalid thermistor channel selection"));
+    return;
+  }
+  float temp = therm_readings[adc0.readADCsingle(channel+4)];
+  data_to_log[(channel+5)] = temp;
+  if(GLOBAL_DEBUG){
+    memset(print_buf, 0, 64);
+    sprintf(print_buf, "channel %d temp: %.1f", channel, temp);
+    Serial.println(print_buf);
+  }
+}
 
 void setup() {
   //---serial---
@@ -104,9 +138,13 @@ void setup() {
     Serial.println(F("Failed to start main timer. Software timers will not update"));
   }
   //---SD card---
-  sdSetup();
+  setupSD();
   //---timestamp---
-  setTime(0,0,0,1,1,2000); //set time to 0, day/month/year are irrelevant as we are only using to track elapsed time
+  resetTime();
+  //---I2C---
+  setupI2C();
+  //---adc---
+  setupAdc();
 }
 
 void loop() {
@@ -114,29 +152,21 @@ void loop() {
     timer1mFlag = 0;
   }
   if(isr10mFlag){
-    if(GLOBAL_DEBUG_FAST){
-      Serial.println(F("10ms Tasks Running"));
-    }
     isr10mFlag = 0;
   }
   if(isr100mFlag){
-    if(GLOBAL_DEBUG_FAST){
-      Serial.println(F("100ms Tasks Running"));
-    }
     isr100mFlag = 0;
+    //---thermistors---
+    readTemperature(0);
+    readTemperature(1);
+    readTemperature(2);
   }
   if(isr1sFlag){
-    if(GLOBAL_DEBUG_SLOW){
-      Serial.println(F("1s Tasks Running"));
-    }
     isr1sFlag = 0;
     //---SD card---
     logToSD();
   }
   if(isr10sFlag){
-    if(GLOBAL_DEBUG_SLOW){
-      Serial.println(F("10s Tasks Running"));
-    }
     isr10sFlag = 0;
   }
 }
