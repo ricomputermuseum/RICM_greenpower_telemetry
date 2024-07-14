@@ -21,6 +21,7 @@
         "xtree": "cpp",
         "xutility": "cpp",
         "fstream": "cpp",
-        "xlocmes": "cpp"
+        "xlocmes": "cpp",
+        "random": "cpp"
     }
 }

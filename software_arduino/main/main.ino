@@ -3,6 +3,7 @@
 
 //---debug---
 #define GLOBAL_DEBUG 1 //if set triggers debug messages on serial from all functions
+#define SERIAL_LOGGING 0 //if set log data to serial as well as SD card
 char print_buf[64] = "hello world!"; //buffer for formatted printing using sprintf
 
 //---timers---
@@ -20,10 +21,14 @@ RPI_PICO_ISR_Timer isr_timers; //the software timers
 uint8_t timer1mFlag, isr10mFlag, isr100mFlag, isr1sFlag, isr10sFlag; //flags for scheduling tasks with the timers
 
 //---timer handlers---
+//declared here instead of in later sections because theya re updated in the timer handlers
+uint32_t interval_0, interval_1; //for the hall speed sensors
 bool timerHandler(struct repeating_timer *t){ //handler for the hardware timer
   (void) t;
   timer1mFlag = 1; //set appropriate flag
   isr_timers.run(); //update software timers
+  interval_0++; //update speed timers, up to 1 minute
+  interval_1++;
   return true;
 }
 void isrHandler10m(){ //handler for the 10ms isr
@@ -63,7 +68,7 @@ void setupSD(){ //setup the SPI as connected to the SD card
     SD.begin(SD_CS_PIN, SPI1); //the SD library offers hardware CS control. N.B. the SD stream can only be opened once, so if the SD card disconnects at any point a reset will be needed to begin logging again
     Serial.println(F("SD card stream initialized"));
     logfile = SD.open(LOGFILE_NAME, "a");
-    logfile.println(F("spd0,spd1,vBat1,vBat2,current,temp0,temp1,temp2,temp3,accX,accY,accZ,gyroX,gyroY,gyroZ,timestamp"));//column names go in the first row
+    logfile.println(F("speed,rpm,vBat1,vBat2,current,temp0,temp1,temp2,temp3,accX,accY,accZ,gyroX,gyroY,gyroZ,timestamp"));//column names go in the first row
     logfile.close();
   }
   else{ 
@@ -73,14 +78,23 @@ void setupSD(){ //setup the SPI as connected to the SD card
 void logToSD(){ //log the raw data in the buffer as formatted CSV data
   if(digitalRead(SD_DET_PIN)){ //only write if the SD card is inserted
     logfile = SD.open(LOGFILE_NAME, "a");
+    if(SERIAL_LOGGING){ //if debugging is on, also print to serial
+      Serial.println(F("speed,rpm,vBat1,vBat2,current,temp0,temp1,temp2,temp3,accX,accY,accZ,gyroX,gyroY,gyroZ,timestamp"));//column names go in the first row
+    }
     for(int i = 0; i < 15; i++){ //write out all values as columns in a CSV line
       memset(log_print_buf, 0, 16);
       sprintf(log_print_buf, "%.3f,", data_to_log[i]);
       logfile.print(log_print_buf);
+      if(SERIAL_LOGGING){
+        Serial.print(log_print_buf);
+      }
     }
     memset(log_print_buf, 0, 16);
     sprintf(log_print_buf, "\"%02d:%02d:%02d\"\n", hour(), minute(), second());//add timestamp and go to new row
     logfile.print(log_print_buf);
+    if(SERIAL_LOGGING){
+        Serial.print(log_print_buf);
+      }
     logfile.close();
   }
   else{ 
@@ -108,7 +122,7 @@ void setupAdc(){ //start the adc with default address on i2c0
 
 //---thermistors---
 #include "thermistor.h" //the acd-temperature conversion table. As the thermistor resistance equation is roughly quartic and the adc is only 8bits, it is simpler to store the values than calculate them.
-void readTemperature(uint8_t channel){ //read the selected channel and store it to the data log buffer
+void readTemperature(uint8_t channel){ //read the selected channel and store it to the data log buffer N.B. channels will float if a thermistor is not connected
   if(channel > 3){
     Serial.println(F("Invalid thermistor channel selection"));
     return;
@@ -122,10 +136,78 @@ void readTemperature(uint8_t channel){ //read the selected channel and store it 
   }
 }
 
+//---hall sensors---
+//spd_0 is for speed at the wheel, spd_1 is for motor RPM
+#include <math.h>
+#define WHEEL_DIAMTER_CM 40 //the total diameter of the outside of the tire at inflation pressure
+#define INTERVAL_CONST_0 60000 //1rpm interval for spd_0, 60000/magnets per wheel
+#define INTERVAL_CONST_1 15000 //1rpm interval for spd_0
+float conversion_factor = ((((float)WHEEL_DIAMTER_CM * 3.14) * 60)/100000); //the total linear distance traveled by the tire in a minute converted to km, multiplied by RPM to get kilometers traveled per hour 
+float speed = 0; //the vehicle speed in KPH
+uint32_t intervals_0[] = {60001,60001,60001,60001,60001}; //median of 5 samples for a less noisy speed reading
+uint32_t intervals_1[] = {60001,60001,60001,60001,60001}; 
+uint8_t interval_index_0, interval_index_1; //indices for the interval buffers
+float rpm0, rpm1;
+void updateSpeedInterval0(){ //record the interval between the last and current activations of the sensor
+  intervals_0[interval_index_0] = interval_0;
+  interval_index_0 = (interval_index_0 + 1) % 5;
+  interval_0 = 0;
+}
+void updateSpeedInterval1(){ //same but for the second sensor
+  intervals_1[interval_index_1] = interval_1;
+  interval_index_1 = (interval_index_1 + 1) % 5;
+  interval_1 = 0;
+}
+void intervalToRPM(){
+  if(interval_0 > INTERVAL_CONST_0){ //wheel is turning at less than 1rpm
+    rpm0 = 0;
+  }
+  else{
+    uint64_t sum0 = 0;
+    for(uint8_t i = 0; i < 5; i++){ //find the arithmetic mean of the five samples
+      sum0 += intervals_0[i];
+    }
+    uint32_t avg_interval_0 = sum0/(uint32_t)5;
+    rpm0 = INTERVAL_CONST_0 / (float)avg_interval_0; //rpm = 1min/magnets per wheel/period
+    speed = conversion_factor * rpm0;
+  }
+  data_to_log[0] = speed; //log wheel speed
+  if(GLOBAL_DEBUG){
+      memset(print_buf, 0, 64);
+      sprintf(print_buf, "Speed: %.1f", speed);
+      Serial.println(print_buf);
+  }
+  if(interval_1 > INTERVAL_CONST_1){ //wheel is turning at less than 1rpm
+    rpm1 = 0;
+  }
+  else{
+    uint64_t sum1 = 0;
+    for(uint8_t i = 0; i < 5; i++){
+      sum1 += intervals_1[i];
+    }
+    uint32_t avg_interval_1 = sum1/(uint32_t)5;
+    rpm1 = (float)INTERVAL_CONST_1 / (float)avg_interval_1;
+  }
+  data_to_log[1] = rpm1; //log engine RPM
+  if(GLOBAL_DEBUG){
+    memset(print_buf, 0, 64);
+    sprintf(print_buf, "Motor RPM: %.1f", rpm1);
+    Serial.println(print_buf);
+  }
+}
+void setupHall(){
+  pinMode(20, INPUT); //SPD_0
+  pinMode(19, INPUT); //SPD_1
+  attachInterrupt(20, updateSpeedInterval0, FALLING); //update interval whenever the interrupt is triggered
+  attachInterrupt(19, updateSpeedInterval1, FALLING); 
+}
+
 void setup() {
   //---serial---
   Serial.begin(); //begin debug serial
-  delay(5000); //debug delay to catch the init messages on usb serial
+  if(GLOBAL_DEBUG){
+    delay(5000); //debug delay to catch the init messages on usb serial
+  }
   //---timers---
   if(itimer1.attachInterruptInterval(HW_TIMER_INTERVAL_US, timerHandler)){ //setup the timer with handlers
     Serial.println(F("Main timer running with period 1000us, setting up software timers"));
@@ -145,6 +227,8 @@ void setup() {
   setupI2C();
   //---adc---
   setupAdc();
+  //---hall sensors---
+  setupHall();
 }
 
 void loop() {
@@ -160,6 +244,8 @@ void loop() {
     readTemperature(0);
     readTemperature(1);
     readTemperature(2);
+    //---hall sensors---
+    intervalToRPM();
   }
   if(isr1sFlag){
     isr1sFlag = 0;
