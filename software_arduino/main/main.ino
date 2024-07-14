@@ -68,7 +68,7 @@ void setupSD(){ //setup the SPI as connected to the SD card
     SD.begin(SD_CS_PIN, SPI1); //the SD library offers hardware CS control. N.B. the SD stream can only be opened once, so if the SD card disconnects at any point a reset will be needed to begin logging again
     Serial.println(F("SD card stream initialized"));
     logfile = SD.open(LOGFILE_NAME, "a");
-    logfile.println(F("speed,rpm,vBat1,vBat2,current,temp0,temp1,temp2,temp3,accX,accY,accZ,gyroX,gyroY,gyroZ,timestamp"));//column names go in the first row
+    logfile.println(F("speed,rpm,vBat0,vBat1,current,temp0,temp1,temp2,temp3,accX,accY,accZ,gyroX,gyroY,gyroZ,timestamp"));//column names go in the first row
     logfile.close();
   }
   else{ 
@@ -118,6 +118,28 @@ void setupI2C(){ //setup the I2C buses
 Adafruit_ADS7830 adc0;
 void setupAdc(){ //start the adc with default address on i2c0
   adc0.begin();
+}
+float vbat, vbat1; //voltages in each battery.
+void readBatteryVoltages(){ //read battery voltages through a divider and calculate the original voltage
+  vbat = (float)(adc0.readADCsingle(0))*0.0516; //0.0129v per level, = 0.1v on the battery through the 68k/10k voltage divider, or 0.0516v on the 30k/10k divider
+  vbat1 = ((float)(adc0.readADCsingle(1))*0.1)-vbat; //voltage through both batteries - voltage on the first battery
+  data_to_log[2] = vbat;
+  data_to_log[3] = vbat1;
+  if(GLOBAL_DEBUG){
+    memset(print_buf, 0, 64);
+    sprintf(print_buf, "vBat0: %.1f, vBat1: %.1f", vbat, vbat1);
+    Serial.println(print_buf);
+  }
+}
+float current; //current reading
+void readCurrent(){ //read and log the current sensor output value, 0.0258v per step through a 10k/10k divider, with the sensor producng +0.625v per 100a
+    current = ((((float)adc0.readADCsingle(2))*0.0258)-(((float)adc0.readADCsingle(3))*0.0258))/0.00625;
+    data_to_log[4] = current;
+    if(GLOBAL_DEBUG){
+      memset(print_buf, 0, 64);
+      sprintf(print_buf, "battery current: %.1f", current);
+      Serial.println(print_buf);
+    }
 }
 
 //---thermistors---
@@ -246,6 +268,9 @@ void loop() {
     readTemperature(2);
     //---hall sensors---
     intervalToRPM();
+    //---adc---
+    readBatteryVoltages();
+    readCurrent();
   }
   if(isr1sFlag){
     isr1sFlag = 0;
