@@ -281,11 +281,36 @@ void logGyro(){ //read all sensors and log data
   }
 }
 
+//---display---
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+Adafruit_SSD1306 disp_right(128, 64, &Wire1, -1);
+Adafruit_SSD1306 disp_left(128, 64, &Wire1, -1);
+void setupDisplays(){
+  Wire1.setSDA(14);
+  Wire1.setSCL(15);
+  Wire1.begin();
+  disp_right.begin(SSD1306_SWITCHCAPVCC, 0x3D);
+  disp_left.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  disp_right.clearDisplay();
+  disp_left.clearDisplay();
+  disp_right.setCursor(10,5);
+  disp_left.setCursor(10,5);
+  disp_right.setTextSize(2);
+  disp_left.setTextSize(2);
+  disp_right.setTextColor(SSD1306_WHITE);
+  disp_left.setTextColor(SSD1306_WHITE);
+  disp_right.println(F("HELLO WORLD!"));
+  disp_left.println(F("HELLO WORLD!"));
+  disp_right.display();
+  disp_left.display();
+}
+
 void setup() {
   //---serial---
   Serial.begin(); //begin debug serial
   if(GLOBAL_DEBUG){
-    delay(5000); //debug delay to catch the init messages on usb serial
+    delay(1000); //debug delay to catch the init messages on usb serial
   }
   //---timers---
   if(itimer1.attachInterruptInterval(HW_TIMER_INTERVAL_US, timerHandler)){ //setup the timer with handlers
@@ -310,6 +335,8 @@ void setup() {
   setupHall();
   //---gyro/accel---
   setupGyro();
+  //---display---
+  setupDisplays();
 }
 
 void loop() {
