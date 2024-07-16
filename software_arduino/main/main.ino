@@ -14,11 +14,11 @@ char print_buf[64] = "hello world!"; //buffer for formatted printing using sprin
 RPI_PICO_Timer itimer1(1); //the hardware timer
 RPI_PICO_ISR_Timer isr_timers; //the software timers
 #define HW_TIMER_INTERVAL_US   1000L  //run hardware timer on a 1ms period, for scheduling critical tasks
-#define TIMER_INTERVAL_10M     10L    //software interrupt timers with periods of 10ms, 100ms, 1s, 10s
 #define TIMER_INTERVAL_100M    100L   //we can have up to 16 of these but the fewer the faster it will run
+#define TIMER_INTERVAL_300M    200L   //software interrupt timers with periods of 100ms, 300ms (button debounce, adjust as needed), 1s, 10s
 #define TIMER_INTERVAL_1S      1000L  //although these are not hardware interrupts, the handlers still need to be light 
 #define TIMER_INTERVAL_10S     10000L //(absolutely no serial prints, ideally just setting flags)
-uint8_t timer1mFlag, isr10mFlag, isr100mFlag, isr1sFlag, isr10sFlag; //flags for scheduling tasks with the timers
+uint8_t timer1mFlag, isr100mFlag, isr300mFlag, isr1sFlag, isr10sFlag; //flags for scheduling tasks with the timers
 
 //---timer handlers---
 //declared here instead of in later sections because theya re updated in the timer handlers
@@ -31,11 +31,11 @@ bool timerHandler(struct repeating_timer *t){ //handler for the hardware timer
   interval_1++;
   return true;
 }
-void isrHandler10m(){ //handler for the 10ms isr
-  isr10mFlag = 1;
-}
 void isrHandler100m(){ //handler for the 100ms isr
   isr100mFlag = 1;
+}
+void isrHandler300m(){ //handler for the 300ms isr
+  isr300mFlag = 1;
 }
 void isrHandler1s(){ //handler for the 1s isr
   isr1sFlag = 1;
@@ -282,29 +282,98 @@ void logGyro(){ //read all sensors and log data
 }
 
 //---display---
+#define USING_DISPLAY
+#ifdef USING_DISPLAY
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-Adafruit_SSD1306 disp_right(128, 64, &Wire1, -1);
-Adafruit_SSD1306 disp_left(128, 64, &Wire1, -1);
-void setupDisplays(){
+#include <PCA9555.h>
+#include "display_assets.h"
+PCA9555 ioex(Wire1, 0x20); //IO expander that controls the buttons and LEDS on the board
+Adafruit_SSD1306 disp_right(128, 64, &Wire1, -1); //the two displays
+Adafruit_SSD1306 disp_left(128, 64, &Wire1, -1); //all three are on I2C1
+uint8_t disp_stat_right, disp_stat_left; //counters to keep track of which stat to display on each screen
+uint8_t leds; //state of LEDS
+void setupDisplays(){ //setup the displays
   Wire1.setSDA(14);
   Wire1.setSCL(15);
   Wire1.begin();
-  disp_right.begin(SSD1306_SWITCHCAPVCC, 0x3D);
-  disp_left.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  disp_right.begin(SSD1306_SWITCHCAPVCC, 0x3D); //N.B. make sure you swap the address select resistor before installing the second screen! 
+  disp_left.begin(SSD1306_SWITCHCAPVCC, 0x3C); //if you switched the address on the screens on your board, just swap them here
   disp_right.clearDisplay();
   disp_left.clearDisplay();
-  disp_right.setCursor(10,5);
-  disp_left.setCursor(10,5);
-  disp_right.setTextSize(2);
-  disp_left.setTextSize(2);
+  disp_right.setTextSize(1);
+  disp_left.setTextSize(1);
   disp_right.setTextColor(SSD1306_WHITE);
   disp_left.setTextColor(SSD1306_WHITE);
-  disp_right.println(F("HELLO WORLD!"));
-  disp_left.println(F("HELLO WORLD!"));
+  disp_right.drawBitmap(0, 0, logo_bitmap_F24, 128, 64, SSD1306_WHITE);
+  disp_left.drawBitmap(0, 0, logo_bitmap_RICM, 128, 64, SSD1306_WHITE);;
   disp_right.display();
   disp_left.display();
 }
+void updateDisplays(){ //show the selected stat on the displays
+  //right display
+  disp_right.clearDisplay();
+  if(disp_stat_right == 15){//displaying time
+    disp_right.setCursor(5,0);
+    disp_right.setTextSize(4);
+    memset(print_buf, 0, 64);
+    sprintf(print_buf, "%02d:%02d", minute(), second()); //format as 4-digit float
+  }
+  else{ //displaying some other stat
+    disp_right.setCursor(0,0); //roughly center
+    disp_right.setTextSize(5); //large text
+    memset(print_buf, 0, 64);
+    sprintf(print_buf, "%04.1f", data_to_log[disp_stat_right]); //format as 4-digit float
+  }
+  disp_right.print(print_buf);
+  disp_right.setCursor(10,48); //roughly bottom center
+  disp_right.setTextSize(2); //small text
+  disp_right.print(disp_labels[disp_stat_right]); //display stat name
+  disp_right.display();
+  //same but for left display
+  disp_left.clearDisplay();
+  if(disp_stat_left == 15){//displaying time
+    disp_left.setCursor(5,0);
+    disp_left.setTextSize(4);
+    memset(print_buf, 0, 64);
+    sprintf(print_buf, "%02d:%02d", minute(), second()); //format as 4-digit float
+  }
+  else{ //displaying some other stat
+    disp_left.setCursor(0,0); //roughly center
+    disp_left.setTextSize(5); //large text
+    memset(print_buf, 0, 64);
+    sprintf(print_buf, "%04.1f", data_to_log[disp_stat_left]); //format as 4-digit float
+  }
+  disp_left.print(print_buf);
+  disp_left.setCursor(10,48); //roughly bottom center
+  disp_left.setTextSize(2); //small text
+  disp_left.print(disp_labels[disp_stat_left]); //display stat name
+  disp_left.display();
+}
+void setupIOEx(){ //setup the GPIO expander, must call after setupDisplays() as that starts the I2C1 bus
+  ioex.begin();
+  ioex.config(0, 0x00); //setup port 0 as output
+  ioex.config(1, 0xFF); //setup port 1 as input
+  ioex.output(0,0b00001111);
+}
+void readIOExButtons(){ //read buttons and update the counters
+  uint8_t input_val = ioex.input(1);
+  if(!(input_val & 0b00000001)){ //left button has been pressed
+    disp_stat_left = (disp_stat_left + 1) % 16;
+  }
+  if(!(input_val & 0b00000010)){ //right button has been pressed
+    disp_stat_right = (disp_stat_right + 1) % 16;
+  }
+  if(GLOBAL_DEBUG){
+      memset(print_buf, 0, 64);
+      sprintf(print_buf, "Display indices L:%d R:%d", disp_stat_left, disp_stat_right);
+      Serial.println(print_buf);
+  }
+}
+void updateLEDS(){
+  ioex.output(0, disp_stat_right);
+}
+#endif
 
 void setup() {
   //---serial---
@@ -315,8 +384,8 @@ void setup() {
   //---timers---
   if(itimer1.attachInterruptInterval(HW_TIMER_INTERVAL_US, timerHandler)){ //setup the timer with handlers
     Serial.println(F("Main timer running with period 1000us, setting up software timers"));
-    isr_timers.setInterval(TIMER_INTERVAL_10M, isrHandler10m); //set software timers with appropriate intervals and handleers
-    isr_timers.setInterval(TIMER_INTERVAL_100M, isrHandler100m);
+    isr_timers.setInterval(TIMER_INTERVAL_100M, isrHandler100m); //set software timers with appropriate intervals and handleers
+    isr_timers.setInterval(TIMER_INTERVAL_300M, isrHandler300m);
     isr_timers.setInterval(TIMER_INTERVAL_1S, isrHandler1s);
     isr_timers.setInterval(TIMER_INTERVAL_10S, isrHandler10s);
   }
@@ -336,15 +405,16 @@ void setup() {
   //---gyro/accel---
   setupGyro();
   //---display---
+  #ifdef USING_DISPLAY
   setupDisplays();
+  setupIOEx();
+  delay(3000);//show logos
+  #endif
 }
 
 void loop() {
   if(timer1mFlag){
     timer1mFlag = 0;
-  }
-  if(isr10mFlag){
-    isr10mFlag = 0;
   }
   if(isr100mFlag){
     isr100mFlag = 0;
@@ -359,6 +429,18 @@ void loop() {
     readCurrent();
     //---gyro/accel---
     logGyro();
+    //---display---
+    #ifdef USING_DISPLAY
+    updateDisplays();
+    #endif
+  }
+  if(isr300mFlag){ //actually 300ms for button debounce, will rename later
+    isr300mFlag = 0;
+    #ifdef USING_DISPLAY
+    readIOExButtons();
+    updateLEDS();
+    #endif
+
   }
   if(isr1sFlag){
     isr1sFlag = 0;
