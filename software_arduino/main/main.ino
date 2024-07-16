@@ -224,6 +224,63 @@ void setupHall(){
   attachInterrupt(19, updateSpeedInterval1, FALLING); 
 }
 
+//---gyro/accelerometer---
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+Adafruit_MPU6050 gyro;
+sensors_event_t a, g, t;
+void setupGyro(){ //setup the MPU6050
+  gyro.begin();
+  gyro.setAccelerometerRange(MPU6050_RANGE_4_G); //not likely to accelerate faster than this
+  gyro.setGyroRange(MPU6050_RANGE_500_DEG); //ditto angular velocity
+  gyro.setFilterBandwidth(MPU6050_BAND_44_HZ); //low pass filter, ignores oscillations faster than this
+  gyro.setCycleRate(MPU6050_CYCLE_20_HZ); //set on-chip sampling rate
+}
+void logGyro(){ //read all sensors and log data
+  gyro.getEvent(&a, &g, &t); //acceleration in m/s^2, gyro in */sec, temp in *c
+  data_to_log[9] = a.acceleration.x;
+  if(GLOBAL_DEBUG){
+      memset(print_buf, 0, 64);
+      sprintf(print_buf, "Accel x: %.1f", data_to_log[9]);
+      Serial.println(print_buf);
+  }
+  data_to_log[10] = a.acceleration.y;
+  if(GLOBAL_DEBUG){
+      memset(print_buf, 0, 64);
+      sprintf(print_buf, "Accel y: %.1f", data_to_log[10]);
+      Serial.println(print_buf);
+  }
+  data_to_log[11] = a.acceleration.z;
+  if(GLOBAL_DEBUG){
+      memset(print_buf, 0, 64);
+      sprintf(print_buf, "Accel z: %.1f", data_to_log[11]);
+      Serial.println(print_buf);
+  }
+  data_to_log[12] = g.gyro.x;
+  if(GLOBAL_DEBUG){
+      memset(print_buf, 0, 64);
+      sprintf(print_buf, "Gyro x: %.1f", data_to_log[12]);
+      Serial.println(print_buf);
+  }
+  data_to_log[13] = g.gyro.y;
+  if(GLOBAL_DEBUG){
+      memset(print_buf, 0, 64);
+      sprintf(print_buf, "Gyro y: %.1f", data_to_log[13]);
+      Serial.println(print_buf);
+  }
+  data_to_log[14] = g.gyro.z;
+  if(GLOBAL_DEBUG){
+      memset(print_buf, 0, 64);
+      sprintf(print_buf, "Gyro z: %.1f", data_to_log[14]);
+      Serial.println(print_buf);
+  }
+  if(GLOBAL_DEBUG){
+      memset(print_buf, 0, 64);
+      sprintf(print_buf, "MPU chip temp: %.1f", t.temperature);
+      Serial.println(print_buf);
+  }
+}
+
 void setup() {
   //---serial---
   Serial.begin(); //begin debug serial
@@ -251,6 +308,8 @@ void setup() {
   setupAdc();
   //---hall sensors---
   setupHall();
+  //---gyro/accel---
+  setupGyro();
 }
 
 void loop() {
@@ -271,6 +330,8 @@ void loop() {
     //---adc---
     readBatteryVoltages();
     readCurrent();
+    //---gyro/accel---
+    logGyro();
   }
   if(isr1sFlag){
     isr1sFlag = 0;
